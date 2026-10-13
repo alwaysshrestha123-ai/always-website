@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book a Consultation — Alwaysss</title>
+<meta name="description" content="Book a free 20-minute discovery call with Alwaysss to discuss your photography or film project.">
+<meta name="theme-color" content="#0b0b0c">
+<link rel="canonical" href="https://always-shrestha.netlify.app/book.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Alwaysss — Visual Storytelling">
+<meta property="og:title" content="Book a Consultation — Alwaysss">
+<meta property="og:description" content="Book a free 20-minute discovery call with Alwaysss to discuss your photography or film project.">
+<meta property="og:image" content="https://always-shrestha.netlify.app/assets/img/hero.webp">
+<meta property="og:url" content="https://always-shrestha.netlify.app/book.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Book a Consultation — Alwaysss">
+<meta name="twitter:description" content="Book a free 20-minute discovery call with Alwaysss to discuss your photography or film project.">
+<meta name="twitter:image" content="https://always-shrestha.netlify.app/assets/img/hero.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23c9a36a' font-family='Georgia'>A</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="preload" as="image" href="assets/img/hero.webp">
+
+</head>
+<body data-page="book">
+<main>
+  <section class="page-hero"><div class="container">
+    <p class="crumb"><a href="index.html">Home</a> / Book a Consultation</p>
+    <h1 class="h-xl">Book a Consultation</h1>
+    <p class="lead">A free, relaxed 20-minute call to understand your project, timeline and goals — and map out how we'd work together. No pressure, no obligation.</p>
+  </div></section>
+  <section class="section" style="padding-top:1rem"><div class="container" style="max-width:760px">
+    <div class="form-card">
+      <form id="book-form" class="form-grid" novalidate>
+        <div class="field"><label for="bk-name">Name *</label><input id="bk-name" name="name" required autocomplete="name"><span class="err">Please enter your name</span></div>
+        <div class="field"><label for="bk-email">Email *</label><input id="bk-email" name="email" type="email" required autocomplete="email"><span class="err">Please enter a valid email</span></div>
+        <div class="field"><label for="bk-phone">Phone / WhatsApp</label><input id="bk-phone" name="phone" type="tel"></div>
+        <div class="field"><label for="bk-type">Project Type *</label>
+          <select id="bk-type" name="projectType" required>
+            <option value="">Select…</option>
+            <option>Hotel & Hospitality</option><option>Commercial / Brand</option><option>Personal Brand</option>
+            <option>Restaurant & Food</option><option>Travel & Lifestyle</option><option>UGC / Social Content</option><option>Other</option>
+          </select><span class="err">Please select a project type</span></div>
+        <div class="field full"><label for="bk-slot">Available Time Slots *</label>
+          <select id="bk-slot" name="slot" required><option value="">Choose a date & time…</option></select>
+          <span class="err">Please choose a slot</span></div>
+        <div class="field full"><label for="bk-msg">Short Project Description *</label>
+          <textarea id="bk-msg" name="message" required placeholder="A sentence or two about what you're planning…"></textarea>
+          <span class="err">Please add a short description</span></div>
+        <div class="field full"><button type="submit" class="btn btn-solid btn-block">Request This Slot</button>
+          <p class="form-note">You'll receive a confirmation by email with a video-call link. Timezone: NPT (UTC+5:45) — I'll confirm your local time by email.</p></div>
+      </form>
+      <div class="confirm-box" id="book-confirm">
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <h3 class="h-md">Consultation requested</h3>
+        <p class="muted" style="margin:.8rem auto 1.4rem;max-width:44ch">Thank you — I'll confirm your slot by email within a few hours with a call link. Talk soon.</p>
+        <a href="mailto:contentbyalways@gmail.com" class="btn btn-ghost btn-sm">Or email me: <span id="bk-email">contentbyalways@gmail.com</span></a>
+      </div>
+    </div>
+  </div></section>
+</main>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

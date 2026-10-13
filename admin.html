@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Login — Alwaysss</title>
+<meta name="description" content="Private dashboard.">
+<meta name="theme-color" content="#0b0b0c">
+<link rel="canonical" href="https://always-shrestha.netlify.app/admin.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Alwaysss — Visual Storytelling">
+<meta property="og:title" content="Client Login — Alwaysss">
+<meta property="og:description" content="Private dashboard.">
+<meta property="og:image" content="https://always-shrestha.netlify.app/assets/img/hero.webp">
+<meta property="og:url" content="https://always-shrestha.netlify.app/admin.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Client Login — Alwaysss">
+<meta name="twitter:description" content="Private dashboard.">
+<meta name="twitter:image" content="https://always-shrestha.netlify.app/assets/img/hero.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23c9a36a' font-family='Georgia'>A</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="preload" as="image" href="assets/img/hero.webp">
+
+</head>
+<body data-page="admin">
+<main class="admin-wrap">
+  <div class="login-card form-card" id="admin-gate">
+    <span class="label">Private</span>
+    <h1 class="h-md" style="margin:.9rem 0 1.4rem">Client Login</h1>
+    <form id="gate-form">
+      <div class="field"><label for="gate-pass">Password</label><input id="gate-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      <p class="err" id="gate-err" style="display:none;color:#e07856;font-size:.85rem;margin:.6rem 0">Incorrect password.</p>
+      <button class="btn btn-solid btn-block" style="margin-top:1rem">Enter Dashboard</button>
+    </form>
+  </div>
+
+  <div id="admin-app" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+      <div><span class="label">Dashboard</span><h1 class="h-md" style="margin-top:.6rem">Manage Your Website</h1></div>
+      <button id="admin-logout" class="btn btn-ghost btn-sm">Log out</button>
+    </div>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-panel="reviews">Reviews <span id="pending-count"></span></button>
+      <button class="admin-tab" data-panel="projects">Projects</button>
+      <button class="admin-tab" data-panel="enquiries">Enquiries</button>
+      <button class="admin-tab" data-panel="settings">Settings</button>
+      <button class="admin-tab" data-panel="stats">Analytics</button>
+    </div>
+
+    <div class="admin-panel active" id="panel-reviews">
+      <h3 class="h-md" style="margin-bottom:1rem">Review Moderation</h3>
+      <p class="muted" style="font-size:.88rem;margin-bottom:1.2rem">New submissions appear as <span class="badge pending">Pending</span> — approve them to display publicly, or mark the best ones <span class="badge featured">Featured</span> to highlight them on the homepage.</p>
+      <table class="admin-table"><thead><tr><th>Client</th><th>Review</th><th>Status</th><th>Actions</th></tr></thead><tbody id="rev-rows"></tbody></table>
+    </div>
+
+    <div class="admin-panel" id="panel-projects">
+      <h3 class="h-md" style="margin-bottom:1rem">Portfolio Projects</h3>
+      <table class="admin-table" style="margin-bottom:2.5rem"><thead><tr><th>Project</th><th>Homepage</th><th>Actions</th></tr></thead><tbody id="proj-rows"></tbody></table>
+      <h3 class="h-md" style="margin-bottom:1.2rem">Add New Project</h3>
+      <form id="proj-add" class="form-grid form-card">
+        <div class="field"><label>Title *</label><input id="np-title" required></div>
+        <div class="field"><label>Client *</label><input id="np-client" required></div>
+        <div class="field"><label>Location *</label><input id="np-loc" required></div>
+        <div class="field"><label>Year</label><input id="np-date" placeholder="2026"></div>
+        <div class="field"><label>Category *</label><select id="np-cat" required>
+          <option>Hotels &amp; Hospitality</option><option>Commercial &amp; Business</option><option>Personal Brands</option>
+          <option>Restaurants &amp; Food</option><option>Travel &amp; Lifestyle</option><option>Cinematography</option>
+          <option>Photography</option><option>Social Media Content</option></select></div>
+        <div class="field"><label style="opacity:0">Featured</label>
+          <label class="check-pill" style="margin-top:2px"><input type="checkbox" id="np-feat"> Feature on homepage</label></div>
+        <div class="field full"><label>Description *</label><textarea id="np-desc" required></textarea></div>
+        <div class="field full"><label>Cover Image URL *</label><input id="np-cover" required placeholder="assets/img/hero.webp or https://…"></div>
+        <div class="field full"><label>Gallery Image URLs (one per line)</label><textarea id="np-gallery" rows="4" placeholder="assets/img/aerial-bay.webp"></textarea></div>
+        <div class="field full"><label>Services (comma separated)</label><input id="np-svc" placeholder="Photography, Cinematography"></div>
+        <div class="field full"><button class="btn btn-solid">Add Project</button></div>
+      </form>
+    </div>
+
+    <div class="admin-panel" id="panel-enquiries">
+      <h3 class="h-md" style="margin-bottom:1rem">Enquiries</h3>
+      <table class="admin-table" style="margin-bottom:3rem"><thead><tr><th>Contact</th><th>Project</th><th>Details</th><th>Status / Actions</th></tr></thead><tbody id="enq-rows"></tbody></table>
+      <h3 class="h-md" style="margin-bottom:1rem">Consultation Requests</h3>
+      <table class="admin-table"><thead><tr><th>Contact</th><th>Slot</th><th>Type</th><th>Message</th><th></th></tr></thead><tbody id="bk-rows"></tbody></table>
+    </div>
+
+    <div class="admin-panel" id="panel-settings">
+      <h3 class="h-md" style="margin-bottom:1.2rem">Site Settings</h3>
+      <form id="set-form" class="form-grid form-card" style="max-width:640px">
+        <div class="field"><label>Brand Name</label><input id="set-name"></div>
+        <div class="field"><label>Contact Email</label><input id="set-email" type="email"></div>
+        <div class="field full"><label>Instagram URL</label><input id="set-ig"></div>
+        <div class="field"><label>Google Analytics ID (optional, e.g. G-XXXXXXX)</label><input id="set-ga" placeholder="G-XXXXXXXXXX"></div>
+        <div class="field"><label>Admin Password</label><input id="set-pass"></div>
+        <div class="field full"><button class="btn btn-solid">Save Settings</button></div>
+      </form>
+      <hr class="hr" style="margin:2.5rem 0">
+      <h3 class="h-md" style="margin-bottom:.8rem">Danger Zone</h3>
+      <button id="reset-btn" class="btn btn-ghost btn-sm" style="border-color:#e07856;color:#e07856">Reset all content to defaults</button>
+    </div>
+
+    <div class="admin-panel" id="panel-stats">
+      <h3 class="h-md" style="margin-bottom:1.2rem">Privacy-Conscious Analytics</h3>
+      <p class="muted" style="font-size:.88rem;margin-bottom:1.5rem">Built-in, cookieless page-view tracking stored locally. Add a Google Analytics ID in Settings for full reporting.</p>
+      <div class="stat-cards" id="stat-cards"></div>
+      <div class="grid-2" style="align-items:start">
+        <div class="form-card"><h3 class="h-md" style="margin-bottom:1.2rem;font-size:1.1rem">Popular Pages</h3><div id="stat-pages"></div></div>
+        <div class="form-card"><h3 class="h-md" style="margin-bottom:1.2rem;font-size:1.1rem">Traffic Sources</h3><div id="stat-refs"></div></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
