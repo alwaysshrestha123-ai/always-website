@@ -32,7 +32,7 @@
     <h1 class="h-md" style="margin:.9rem 0 1.4rem">Client Login</h1>
     <form id="gate-form">
       <div class="field"><label for="gate-pass">Password</label><input id="gate-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
-      <p class="err" id="gate-err" style="display:none;color:#e07856;font-size:.85rem;margin:.6rem 0">Incorrect password.</p>
+      <p class="err" id="gate-err" style="display:none;color:#e07856;font-size:.85rem;margin:.6rem 0">Wrong password</p>
       <button class="btn btn-solid btn-block" style="margin-top:1rem">Enter Dashboard</button>
     </form>
   </div>
@@ -94,9 +94,14 @@
         <div class="field"><label>Contact Email</label><input id="set-email" type="email"></div>
         <div class="field full"><label>Instagram URL</label><input id="set-ig"></div>
         <div class="field"><label>Google Analytics ID (optional, e.g. G-XXXXXXX)</label><input id="set-ga" placeholder="G-XXXXXXXXXX"></div>
-        <div class="field"><label>Admin Password</label><input id="set-pass"></div>
         <div class="field full"><button class="btn btn-solid">Save Settings</button></div>
       </form>
+      <div id="import-wrap" style="display:none">
+        <hr class="hr" style="margin:2.5rem 0">
+        <h3 class="h-md" style="margin-bottom:.8rem">Import Local Data</h3>
+        <p class="muted" style="font-size:.88rem;margin-bottom:1rem">This browser still has edits saved from before the dashboard moved to the cloud. Upload them once so they appear on the live site.</p>
+        <button id="import-btn" class="btn btn-ghost btn-sm">Import local data to cloud</button>
+      </div>
       <hr class="hr" style="margin:2.5rem 0">
       <h3 class="h-md" style="margin-bottom:.8rem">Danger Zone</h3>
       <button id="reset-btn" class="btn btn-ghost btn-sm" style="border-color:#e07856;color:#e07856">Reset all content to defaults</button>
@@ -104,7 +109,7 @@
 
     <div class="admin-panel" id="panel-stats">
       <h3 class="h-md" style="margin-bottom:1.2rem">Privacy-Conscious Analytics</h3>
-      <p class="muted" style="font-size:.88rem;margin-bottom:1.5rem">Built-in, cookieless page-view tracking stored locally. Add a Google Analytics ID in Settings for full reporting.</p>
+      <p class="muted" style="font-size:.88rem;margin-bottom:1.5rem">Built-in, cookieless page-view tracking stored locally in this browser. Add a Google Analytics ID in Settings for full reporting.</p>
       <div class="stat-cards" id="stat-cards"></div>
       <div class="grid-2" style="align-items:start">
         <div class="form-card"><h3 class="h-md" style="margin-bottom:1.2rem;font-size:1.1rem">Popular Pages</h3><div id="stat-pages"></div></div>

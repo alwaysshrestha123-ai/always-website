@@ -42,3 +42,15 @@ The enquiry form has three layers:
 Semantic headings, per-page meta descriptions, Open Graph/Twitter cards, JSON-LD structured data (ProfessionalService), `sitemap.xml`, `robots.txt`, descriptive alt text, clean URLs, lazy-loaded WebP images (whole image set ≈ 1.5 MB).
 
 *All photos currently in `assets/img/` are temporary placeholders (Pexels/Unsplash) — replace with your portfolio before launch.*
+
+## Shared admin data (Netlify Functions + Blobs)
+
+Projects, reviews, settings, enquiries and bookings are stored in Netlify Blobs (store `site-data`) through
+`/.netlify/functions/store`. Edits made in `admin.html` appear on every device and for every visitor.
+Contact, booking and review forms send submissions to the same store, so they show up in the dashboard.
+New reviews stay hidden until approved. If the cloud is unreachable, pages fall back to the defaults in `assets/js/data.js`.
+
+**Admin password:** set an environment variable named `ADMIN_TOKEN` in Netlify
+(Project configuration → Environment variables → Add a variable). Its value is your admin password.
+Redeploy after adding it. No password is stored in the site code.
+Log in to `admin.html` once straight after the first deploy so the default content is saved to the cloud.
