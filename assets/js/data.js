@@ -1,7 +1,7 @@
 
 /* ============================================================
-   ALWAYSSS — Seed data (loaded into localStorage on first run)
-   Edit anything here, or use the Admin dashboard (/admin.html)
+   ALWAYSSS — Default data (used until the Admin dashboard saves
+   a version to the cloud, and as a fallback if the cloud is offline)
    ============================================================ */
 window.ALWAYSSS_SEED = {
   settings: {
@@ -11,7 +11,6 @@ window.ALWAYSSS_SEED = {
     email: "contentbyalways@gmail.com",
     instagram: "https://www.instagram.com/always_shrestha",
     location: "Worldwide — based in Kathmandu",
-    adminPassword: "always2026",
     gaId: "",
     baseUrl: "https://always-shrestha.netlify.app"
   },
@@ -196,3 +195,36 @@ window.ALWAYSSS_SEED = {
   bookings: [],
   analytics: []
 };
+
+/* ---------------- cloud storage helpers ----------------
+   Shared data lives in Netlify Blobs via /.netlify/functions/store.
+   The admin token (entered at login) is kept in sessionStorage only. */
+(function () {
+  var API = "/.netlify/functions/store";
+  function headers(isJson) {
+    var h = {};
+    if (isJson) h["Content-Type"] = "application/json";
+    var t = sessionStorage.getItem("adminToken");
+    if (t) h["x-admin-token"] = t;
+    return h;
+  }
+  async function post(body) {
+    var res = await fetch(API, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    return data;
+  }
+  // returns the cloud value, or `fallback` if it's empty or the request fails
+  window.cloudGet = async function (key, fallback) {
+    try {
+      var res = await fetch(API + "?key=" + encodeURIComponent(key), { headers: headers(false), cache: "no-store" });
+      if (!res.ok) return fallback;
+      var v = await res.json();
+      return v == null ? fallback : v;
+    } catch (e) { return fallback; }
+  };
+  // admin-only full overwrite; throws on failure
+  window.cloudSet = function (key, value) { return post({ key: key, value: value }); };
+  // public append (enquiries, bookings, reviews); throws on failure
+  window.cloudAppend = function (key, value) { return post({ key: key, value: value, append: true }); };
+})();

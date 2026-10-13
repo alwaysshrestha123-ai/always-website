@@ -8,28 +8,21 @@
   "use strict";
 
   /* ---------------- storage ---------------- */
-  const DB = {
-    get(key, fallback) {
-      try {
-        const raw = localStorage.getItem("aw_" + key);
-        return raw ? JSON.parse(raw) : (fallback !== undefined ? fallback : JSON.parse(JSON.stringify(window.ALWAYSSS_SEED[key])));
-      } catch (e) { return fallback; }
-    },
-    set(key, val) { localStorage.setItem("aw_" + key, JSON.stringify(val)); },
-    seed() {
-      if (!localStorage.getItem("aw_seeded")) {
-        Object.keys(window.ALWAYSSS_SEED).forEach(k => DB.set(k, window.ALWAYSSS_SEED[k]));
-        localStorage.setItem("aw_seeded", "1");
-      }
-    }
+  // Shared site data comes from the cloud (cloudGet/cloudSet/cloudAppend in data.js),
+  // falling back to the defaults in data.js. Only per-browser analytics stay local.
+  const SEED = key => JSON.parse(JSON.stringify(window.ALWAYSSS_SEED[key]));
+  const DATA = {};
+  const load = keys => Promise.all(keys.map(async k => { DATA[k] = await cloudGet(k, SEED(k)); }));
+  const LOCAL = {
+    get(key, fallback) { try { const raw = localStorage.getItem("aw_" + key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; } },
+    set(key, val) { try { localStorage.setItem("aw_" + key, JSON.stringify(val)); } catch (e) {} }
   };
-  DB.seed();
 
-  const settings = () => DB.get("settings");
-  const projects = () => DB.get("projects");
-  const reviews = () => DB.get("reviews");
-  const clients = () => DB.get("clients");
-  const services = () => DB.get("services");
+  const settings = () => Object.assign(SEED("settings"), DATA.settings);
+  const projects = () => DATA.projects;
+  const reviews = () => DATA.reviews;
+  const clients = () => SEED("clients");
+  const services = () => SEED("services");
 
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const $ = (sel, ctx) => (ctx || document).querySelector(sel);
@@ -42,10 +35,10 @@
   /* ---------------- analytics (privacy-conscious, local) ---------------- */
   function track() {
     try {
-      const data = DB.get("analytics", []);
+      const data = LOCAL.get("analytics", []);
       data.push({ p: location.pathname.split("/").pop() || "index.html", t: Date.now(), ref: document.referrer || "direct", ua: navigator.userAgent, lang: navigator.language });
       if (data.length > 4000) data.splice(0, data.length - 4000);
-      DB.set("analytics", data);
+      LOCAL.set("analytics", data);
       const ga = settings().gaId;
       if (ga && !window.__gaLoaded) {
         window.__gaLoaded = 1;
@@ -347,23 +340,42 @@
     starBox.addEventListener("click", e => { const b = e.target.closest("button"); if (b) { rating = +b.dataset.n; paint(); } });
 
     const form = $("#review-form");
-    form.addEventListener("submit", e => {
+    form.addEventListener("submit", async e => {
       e.preventDefault();
       if (!validateForm(form)) return;
+      const btn = $("button[type=submit]", form);
+      if (btn) btn.disabled = true;
       const photoFile = $("#rv-photo").files[0];
-      const save = photo => {
-        const list = reviews();
-        list.unshift({ id: uid(), name: $("#rv-name").value.trim(), company: $("#rv-company").value.trim(),
+      const photo = photoFile ? await shrinkImage(photoFile, 400) : "";
+      try {
+        await cloudAppend("reviews", { name: $("#rv-name").value.trim(), company: $("#rv-company").value.trim(),
           email: $("#rv-email").value.trim(), rating, projectType: $("#rv-type").value,
-          text: $("#rv-text").value.trim(), photo: photo || "", website: $("#rv-url").value.trim(),
-          status: "pending", featured: false, date: new Date().toISOString().slice(0, 10) });
-        DB.set("reviews", list);
+          text: $("#rv-text").value.trim(), photo, website: $("#rv-url").value.trim() });
         form.style.display = "none"; $("#rev-confirm").classList.add("show");
+      } catch (err) {
+        alert("Sorry, your review could not be sent. Please try again in a moment.");
+      } finally { if (btn) btn.disabled = false; }
+    });
+  }
+
+  /* ---------------- image compression (keeps uploads small) ---------------- */
+  function shrinkImage(file, max) {
+    return new Promise(resolve => {
+      if (!/^image\//.test(file.type)) return resolve("");
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        let q = 0.82, out = c.toDataURL("image/jpeg", q);
+        while (out.length > 60000 && q > 0.4) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+        resolve(out.length <= 80000 ? out : "");
       };
-      if (photoFile && photoFile.size < 900000) {
-        const rd = new FileReader();
-        rd.onload = () => save(rd.result); rd.readAsDataURL(photoFile);
-      } else save("");
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(""); };
+      img.src = url;
     });
   }
 
@@ -408,17 +420,24 @@
 
     const form = $("#enquiry-form");
     form.dataset.t0 = Date.now();
-    form.addEventListener("submit", e => {
+    form.addEventListener("submit", async e => {
       e.preventDefault();
       if (!validateForm(form)) return;
+      const btn = $("button[type=submit]", form); btn.disabled = true;
       const d = serialize(form);
-      d.id = uid(); d.created = new Date().toISOString(); d.read = false;
-      const list = DB.get("enquiries", []); list.unshift(d); DB.set("enquiries", list);
-      // try Netlify Forms AJAX (works when deployed on Netlify), fail silently otherwise
-      try {
-        const fd = new FormData(form); fd.append("form-name", "enquiry"); fd.append("bot-field", "");
-        fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fd).toString() }).catch(() => {});
-      } catch (err) {}
+      delete d["bot-field"]; d.read = false;
+      // save to the shared store (shown in admin) and also send through Netlify Forms
+      const fd = new FormData(form); fd.append("form-name", "enquiry"); fd.append("bot-field", "");
+      const [cloud, netlify] = await Promise.allSettled([
+        cloudAppend("enquiries", d),
+        fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fd).toString() })
+          .then(r => { if (!r.ok) throw new Error(r.status); })
+      ]);
+      btn.disabled = false;
+      if (cloud.status === "rejected" && netlify.status === "rejected") {
+        alert("Sorry, your enquiry could not be sent. Please try again, or email " + s.email + ".");
+        return;
+      }
       form.style.display = "none"; $("#enq-confirm").classList.add("show");
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -442,11 +461,17 @@
         sel.insertAdjacentHTML("beforeend", '<option value="' + d.toISOString().slice(0, 10) + " " + h + '">' + lbl + "</option>");
       });
     }
-    form.addEventListener("submit", e => {
+    form.addEventListener("submit", async e => {
       e.preventDefault();
       if (!validateForm(form)) return;
-      const d = serialize(form); d.id = uid(); d.created = new Date().toISOString();
-      const list = DB.get("bookings", []); list.unshift(d); DB.set("bookings", list);
+      const btn = $("button[type=submit]", form); btn.disabled = true;
+      try {
+        await cloudAppend("bookings", serialize(form));
+      } catch (err) {
+        btn.disabled = false;
+        alert("Sorry, your request could not be sent. Please try again, or email " + s.email + ".");
+        return;
+      }
       form.style.display = "none"; $("#book-confirm").classList.add("show");
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -456,17 +481,60 @@
   function initAdmin() {
     renderChrome("");
     const gate = $("#admin-gate"), app = $("#admin-app");
-    function unlock() {
+    const CONTENT_KEYS = ["settings", "projects", "reviews"];
+    const ADMIN_KEYS = CONTENT_KEYS.concat(["enquiries", "bookings"]);
+    const fallback = k => (k === "enquiries" || k === "bookings") ? [] : SEED(k);
+
+    // re-read a key from the cloud just before changing it, so visitor submissions aren't overwritten
+    const fresh = async k => (DATA[k] = await cloudGet(k, DATA[k] || fallback(k)));
+    async function save(key, val) {
+      try { await cloudSet(key, val); DATA[key] = val; return true; }
+      catch (err) {
+        alert("Save failed — your change was NOT saved.\n\n" + (err.message === "Forbidden" ? "Your login has expired. Please log out and log in again." : "Error: " + err.message + ". Check your connection and try again."));
+        return false;
+      }
+    }
+
+    // a protected read: 200 = correct token, 403 = wrong token
+    async function verifyToken() {
+      try {
+        const r = await fetch("/.netlify/functions/store?key=enquiries", { headers: { "x-admin-token": sessionStorage.getItem("adminToken") || "" }, cache: "no-store" });
+        return r.status;
+      } catch (e) { return 0; }
+    }
+
+    async function unlock() {
+      const token = sessionStorage.getItem("adminToken") || "";
+      await Promise.all(ADMIN_KEYS.map(async k => {
+        let res;
+        try { res = await fetch("/.netlify/functions/store?key=" + k, { headers: { "x-admin-token": token }, cache: "no-store" }); } catch (e) {}
+        if (!res || !res.ok) { DATA[k] = DATA[k] || fallback(k); return; }
+        const v = await res.json();
+        DATA[k] = v === null ? fallback(k) : v;
+        // first login after going live: save the defaults to the cloud, so visitor reviews never replace them
+        if (v === null && CONTENT_KEYS.includes(k)) await cloudSet(k, DATA[k]).catch(() => {});
+      }));
       gate.style.display = "none"; app.style.display = "";
+      if (LOCAL.get("projects") || LOCAL.get("reviews") || LOCAL.get("enquiries")) $("#import-wrap").style.display = "";
+      drawProjects(); drawAdminReviews(); drawEnquiries(); fillSettings();
       $$(".admin-tab")[0].click(); drawStats();
     }
-    if (sessionStorage.getItem("aw_admin") === settings().adminPassword) unlock();
+
+    async function login() {
+      const status = await verifyToken();
+      if (status === 200) { $("#gate-err").style.display = "none"; return unlock(); }
+      sessionStorage.removeItem("adminToken");
+      $("#gate-err").textContent = status === 403 ? "Wrong password" : "Could not reach the server. Please try again.";
+      $("#gate-err").style.display = "block";
+    }
+    if (sessionStorage.getItem("adminToken")) login().then(() => $("#gate-err").style.display = "none");
     $("#gate-form").addEventListener("submit", e => {
       e.preventDefault();
-      if ($("#gate-pass").value === settings().adminPassword) { sessionStorage.setItem("aw_admin", $("#gate-pass").value); unlock(); }
-      else $("#gate-err").style.display = "block";
+      sessionStorage.setItem("adminToken", $("#gate-pass").value);
+      $("#gate-pass").value = "";
+      login();
     });
-    $("#admin-logout").addEventListener("click", () => { sessionStorage.removeItem("aw_admin"); location.reload(); });
+    $("#admin-logout").addEventListener("click", () => { sessionStorage.removeItem("adminToken"); location.reload(); });
 
     $$(".admin-tab").forEach(t => t.addEventListener("click", () => {
       $$(".admin-tab").forEach(x => x.classList.remove("active")); t.classList.add("active");
@@ -481,26 +549,27 @@
         "<tr><td><b>" + esc(p.title) + '</b><br><span class="muted" style="font-size:.8rem">' + esc(p.category) + " · " + esc(p.location) + '</span></td>' +
         "<td>" + (p.featured ? '<span class="badge featured">Featured</span>' : '<span class="badge read">—</span>') + "</td>" +
         '<td><div class="admin-actions">' +
-          '<button class="mini-btn" data-act="feat" data-id="' + p.id + '">' + (p.featured ? "Unfeature" : "Feature") + "</button>" +
-          '<button class="mini-btn" data-act="up" data-id="' + p.id + '"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
-          '<button class="mini-btn" data-act="down" data-id="' + p.id + '"' + (i === projects().length - 1 ? " disabled" : "") + ">↓</button>" +
-          '<button class="mini-btn danger" data-act="del" data-id="' + p.id + '">Delete</button>' +
+          '<button class="mini-btn" data-act="feat" data-id="' + esc(p.id) + '">' + (p.featured ? "Unfeature" : "Feature") + "</button>" +
+          '<button class="mini-btn" data-act="up" data-id="' + esc(p.id) + '"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+          '<button class="mini-btn" data-act="down" data-id="' + esc(p.id) + '"' + (i === projects().length - 1 ? " disabled" : "") + ">↓</button>" +
+          '<button class="mini-btn danger" data-act="del" data-id="' + esc(p.id) + '">Delete</button>' +
         "</div></td></tr>").join("");
     }
-    drawProjects();
-    $("#proj-rows").addEventListener("click", e => {
+    $("#proj-rows").addEventListener("click", async e => {
       const b = e.target.closest("button"); if (!b) return;
-      const list = projects(); const i = list.findIndex(p => p.id === b.dataset.id);
-      if (b.dataset.act === "del" && confirm("Delete this project?")) { list.splice(i, 1); }
+      if (b.dataset.act === "del" && !confirm("Delete this project?")) return;
+      const list = await fresh("projects"); const i = list.findIndex(p => p.id === b.dataset.id);
+      if (i < 0) return drawProjects();
+      if (b.dataset.act === "del") { list.splice(i, 1); }
       if (b.dataset.act === "feat") { list[i].featured = !list[i].featured; }
       if (b.dataset.act === "up" && i > 0) { [list[i - 1], list[i]] = [list[i], list[i - 1]]; }
       if (b.dataset.act === "down" && i < list.length - 1) { [list[i + 1], list[i]] = [list[i], list[i + 1]]; }
-      DB.set("projects", list); drawProjects();
+      await save("projects", list); drawProjects();
     });
-    $("#proj-add").addEventListener("submit", e => {
+    $("#proj-add").addEventListener("submit", async e => {
       e.preventDefault();
       const f = e.target;
-      const list = projects();
+      const list = await fresh("projects");
       list.unshift({
         id: uid(), title: $("#np-title").value.trim(), client: $("#np-client").value.trim(),
         location: $("#np-loc").value.trim(), date: $("#np-date").value || String(new Date().getFullYear()),
@@ -511,7 +580,8 @@
         services: $("#np-svc").value.split(",").map(x => x.trim()).filter(Boolean),
         videoUrl: "", bts: "", clientUrl: "", testimonial: { text: "", author: "", role: "" }
       });
-      DB.set("projects", list); f.reset(); drawProjects(); alert("Project added.");
+      if (await save("projects", list)) { f.reset(); alert("Project added."); }
+      drawProjects();
     });
 
     /* --- reviews moderation --- */
@@ -521,89 +591,112 @@
         "<tr><td><b>" + esc(r.name) + '</b><br><span class="muted" style="font-size:.8rem">' + esc(r.company) + " · " + esc(r.projectType) + '</span><br><span class="stars" style="font-size:.8rem">' + stars(r.rating) + '</span></td>' +
         "<td style='max-width:340px'>" + esc(r.text) + "</td>" +
         "<td>" + (r.featured ? '<span class="badge featured">Featured</span> ' : "") +
-          '<span class="badge ' + r.status + '">' + r.status + "</span></td>" +
+          '<span class="badge ' + esc(r.status) + '">' + esc(r.status) + "</span></td>" +
         '<td><div class="admin-actions">' +
-          (r.status === "pending" ? '<button class="mini-btn ok" data-act="approve" data-id="' + r.id + '">Approve</button><button class="mini-btn danger" data-act="reject" data-id="' + r.id + '">Reject</button>' : "") +
-          '<button class="mini-btn" data-act="feature" data-id="' + r.id + '">' + (r.featured ? "Unfeature" : "Feature") + "</button>" +
-          '<button class="mini-btn" data-act="edit" data-id="' + r.id + '">Edit</button>' +
-          '<button class="mini-btn danger" data-act="del" data-id="' + r.id + '">Delete</button>' +
+          (r.status === "pending" ? '<button class="mini-btn ok" data-act="approve" data-id="' + esc(r.id) + '">Approve</button><button class="mini-btn danger" data-act="reject" data-id="' + esc(r.id) + '">Reject</button>' : "") +
+          '<button class="mini-btn" data-act="feature" data-id="' + esc(r.id) + '">' + (r.featured ? "Unfeature" : "Feature") + "</button>" +
+          '<button class="mini-btn" data-act="edit" data-id="' + esc(r.id) + '">Edit</button>' +
+          '<button class="mini-btn danger" data-act="del" data-id="' + esc(r.id) + '">Delete</button>' +
         "</div></td></tr>").join("") || '<tr><td colspan="4" class="muted">No reviews yet.</td></tr>';
     }
-    drawAdminReviews();
-    $("#rev-rows").addEventListener("click", e => {
+    $("#rev-rows").addEventListener("click", async e => {
       const b = e.target.closest("button"); if (!b) return;
-      const list = reviews(); const r = list.find(x => x.id === b.dataset.id);
-      if (b.dataset.act === "approve") r.status = "approved";
-      if (b.dataset.act === "reject") r.status = "rejected";
-      if (b.dataset.act === "feature") r.featured = !r.featured;
-      if (b.dataset.act === "del" && confirm("Delete this review?")) list.splice(list.indexOf(r), 1);
-      if (b.dataset.act === "edit") {
-        const nt = prompt("Edit review text:", r.text);
-        if (nt !== null) r.text = nt.trim() || r.text;
-      }
-      DB.set("reviews", list); drawAdminReviews();
+      const act = b.dataset.act;
+      if (act === "del" && !confirm("Delete this review?")) return;
+      let nt = null;
+      if (act === "edit") { const cur = reviews().find(x => x.id === b.dataset.id); nt = prompt("Edit review text:", cur ? cur.text : ""); if (nt === null) return; }
+      const list = await fresh("reviews"); const r = list.find(x => x.id === b.dataset.id);
+      if (!r) return drawAdminReviews();
+      if (act === "approve") r.status = "approved";
+      if (act === "reject") r.status = "rejected";
+      if (act === "feature") r.featured = !r.featured;
+      if (act === "del") list.splice(list.indexOf(r), 1);
+      if (act === "edit") r.text = nt.trim() || r.text;
+      await save("reviews", list); drawAdminReviews();
     });
 
     /* --- enquiries / bookings --- */
     function drawEnquiries() {
-      const list = DB.get("enquiries", []);
+      const list = DATA.enquiries || [];
       $("#enq-rows").innerHTML = list.map(q =>
         "<tr><td><b>" + esc(q.name) + '</b><br><span class="muted" style="font-size:.8rem">' + esc(q.email) + " · " + esc(q.phone || "—") + '</span></td>' +
         "<td>" + esc(q.projectType || "—") + "<br><span class='muted' style='font-size:.8rem'>" + esc(q.location || "") + " · " + esc(q.budget || "") + "</span></td>" +
         "<td style='max-width:320px'>" + esc(q.description || "") + "</td>" +
         "<td>" + (q.read ? '<span class="badge read">Read</span>' : '<span class="badge pending">New</span>') + '<br><br><div class="admin-actions">' +
-          '<button class="mini-btn ok" data-act="read" data-id="' + q.id + '">Mark read</button>' +
+          '<button class="mini-btn ok" data-act="read" data-id="' + esc(q.id) + '">Mark read</button>' +
           '<a class="mini-btn" href="mailto:' + esc(q.email) + '?subject=' + encodeURIComponent("Re: Your enquiry — " + (q.projectType || "project")) + '">Reply</a>' +
-          '<button class="mini-btn danger" data-act="del" data-id="' + q.id + '">Delete</button></div></td></tr>'
+          '<button class="mini-btn danger" data-act="del" data-id="' + esc(q.id) + '">Delete</button></div></td></tr>'
       ).join("") || '<tr><td colspan="4" class="muted">No enquiries yet.</td></tr>';
-      $("#bk-rows").innerHTML = DB.get("bookings", []).map(bk =>
+      $("#bk-rows").innerHTML = (DATA.bookings || []).map(bk =>
         "<tr><td><b>" + esc(bk.name) + '</b><br><span class="muted" style="font-size:.8rem">' + esc(bk.email) + " · " + esc(bk.phone || "") + "</span></td>" +
         "<td>" + esc(bk.slot || "—") + "</td><td>" + esc(bk.projectType || "") + "</td>" +
         "<td style='max-width:280px'>" + esc(bk.message || "") + "</td>" +
-        '<td><button class="mini-btn danger" data-act="delbk" data-id="' + bk.id + '">Delete</button></td></tr>'
+        '<td><button class="mini-btn danger" data-act="delbk" data-id="' + esc(bk.id) + '">Delete</button></td></tr>'
       ).join("") || '<tr><td colspan="5" class="muted">No consultation requests yet.</td></tr>';
     }
-    drawEnquiries();
-    $("#enq-rows").addEventListener("click", e => {
+    $("#enq-rows").addEventListener("click", async e => {
       const b = e.target.closest("button"); if (!b) return;
-      const list = DB.get("enquiries", []); const q = list.find(x => x.id === b.dataset.id);
+      if (b.dataset.act === "del" && !confirm("Delete this enquiry?")) return;
+      const list = await fresh("enquiries"); const q = list.find(x => x.id === b.dataset.id);
+      if (!q) return drawEnquiries();
       if (b.dataset.act === "read") q.read = true;
-      if (b.dataset.act === "del" && confirm("Delete this enquiry?")) list.splice(list.indexOf(q), 1);
-      DB.set("enquiries", list); drawEnquiries();
+      if (b.dataset.act === "del") list.splice(list.indexOf(q), 1);
+      await save("enquiries", list); drawEnquiries();
     });
-    $("#bk-rows").addEventListener("click", e => {
+    $("#bk-rows").addEventListener("click", async e => {
       const b = e.target.closest("button"); if (!b) return;
-      const list = DB.get("bookings", []); const bk = list.find(x => x.id === b.dataset.id);
-      if (b.dataset.act === "delbk" && confirm("Delete this booking request?")) list.splice(list.indexOf(bk), 1);
-      DB.set("bookings", list); drawEnquiries();
+      if (b.dataset.act !== "delbk" || !confirm("Delete this booking request?")) return;
+      const list = await fresh("bookings"); const bk = list.find(x => x.id === b.dataset.id);
+      if (bk) { list.splice(list.indexOf(bk), 1); await save("bookings", list); }
+      drawEnquiries();
     });
 
     /* --- settings --- */
-    const st = settings();
-    $("#set-name").value = st.name; $("#set-email").value = st.email; $("#set-ig").value = st.instagram;
-    $("#set-ga").value = st.gaId; $("#set-pass").value = st.adminPassword;
-    $("#set-form").addEventListener("submit", e => {
+    function fillSettings() {
+      const st = settings();
+      $("#set-name").value = st.name; $("#set-email").value = st.email; $("#set-ig").value = st.instagram;
+      $("#set-ga").value = st.gaId;
+    }
+    $("#set-form").addEventListener("submit", async e => {
       e.preventDefault();
       const cur = settings();
-      DB.set("settings", Object.assign({}, cur, {
+      delete cur.adminPassword;
+      const ok = await save("settings", Object.assign({}, cur, {
         name: $("#set-name").value.trim() || cur.name,
         email: $("#set-email").value.trim() || cur.email,
         instagram: $("#set-ig").value.trim() || cur.instagram,
-        gaId: $("#set-ga").value.trim(),
-        adminPassword: $("#set-pass").value.trim() || cur.adminPassword
+        gaId: $("#set-ga").value.trim()
       }));
-      alert("Settings saved.");
+      if (ok) alert("Settings saved.");
     });
-    $("#reset-btn").addEventListener("click", () => {
-      if (confirm("Reset ALL content to defaults? This cannot be undone.")) {
-        Object.keys(window.ALWAYSSS_SEED).forEach(k => DB.set(k, window.ALWAYSSS_SEED[k]));
-        location.reload();
+    $("#reset-btn").addEventListener("click", async () => {
+      if (!confirm("Reset all projects, reviews and settings to defaults? Enquiries and bookings are kept. This cannot be undone.")) return;
+      for (const k of CONTENT_KEYS) { if (!(await save(k, SEED(k)))) return; }
+      location.reload();
+    });
+
+    /* --- one-time import of data saved in this browser before the cloud switch --- */
+    $("#import-btn").addEventListener("click", async () => {
+      if (!confirm("Upload the projects, reviews, settings, enquiries and bookings saved in THIS browser to the live site? Cloud projects and settings will be replaced; reviews, enquiries and bookings are merged.")) return;
+      for (const k of ADMIN_KEYS) {
+        const local = LOCAL.get(k); if (!local) continue;
+        let val = local;
+        if (k === "settings") { val = Object.assign({}, local); delete val.adminPassword; }
+        if (Array.isArray(local) && k !== "projects") {
+          const cloud = await fresh(k);
+          const ids = new Set(local.map(x => x.id));
+          val = local.concat(cloud.filter(x => !ids.has(x.id)));
+        }
+        if (!(await save(k, val))) return;
       }
+      ADMIN_KEYS.concat(["clients", "services", "seeded"]).forEach(k => localStorage.removeItem("aw_" + k));
+      alert("Import complete — your local data is now live.");
+      location.reload();
     });
 
     /* --- stats --- */
     function drawStats() {
-      const a = DB.get("analytics", []);
+      const a = LOCAL.get("analytics", []);
       const total = a.length;
       const byPage = {}; a.forEach(x => byPage[x.p] = (byPage[x.p] || 0) + 1);
       const byRef = {}; a.forEach(x => { const r = x.ref ? (x.ref.includes("instagram") ? "Instagram" : x.ref.includes("facebook") ? "Facebook" : x.ref.includes("google") ? "Google" : "Other site") : "Direct / typed"; byRef[r] = (byRef[r] || 0) + 1; });
@@ -611,7 +704,7 @@
       $("#stat-cards").innerHTML =
         '<div class="stat-card"><b>' + total + '</b><span>Total page views</span></div>' +
         '<div class="stat-card"><b>' + Math.round((mobile / (total || 1)) * 100) + '%</b><span>Mobile visitors</span></div>' +
-        '<div class="stat-card"><b>' + DB.get("enquiries", []).length + '</b><span>Enquiries</span></div>' +
+        '<div class="stat-card"><b>' + (DATA.enquiries || []).length + '</b><span>Enquiries</span></div>' +
         '<div class="stat-card"><b>' + reviews().filter(r => r.status === "pending").length + '</b><span>Pending reviews</span></div>';
       const max = Math.max(1, ...Object.values(byPage));
       $("#stat-pages").innerHTML = Object.entries(byPage).sort((x, y) => y[1] - x[1]).slice(0, 8).map(([p, c]) =>
@@ -623,14 +716,17 @@
   }
 
   /* ---------------- boot ---------------- */
-  const page = document.body.dataset.page;
-  const init = {
-    home: initHome, work: initWork, project: initProject, services: initServices,
-    about: initAbout, reviews: initReviews, contact: initContact, book: initBook, admin: initAdmin
-  }[page];
-  if (page === "privacy" || page === "terms") renderChrome("");
-  if (init) init(); else if (page !== "privacy" && page !== "terms") renderChrome("");
-  initReveal();
-  initCookie();
-  track();
+  (async function boot() {
+    await load(["settings", "projects", "reviews"]);
+    const page = document.body.dataset.page;
+    const init = {
+      home: initHome, work: initWork, project: initProject, services: initServices,
+      about: initAbout, reviews: initReviews, contact: initContact, book: initBook, admin: initAdmin
+    }[page];
+    if (page === "privacy" || page === "terms") renderChrome("");
+    if (init) init(); else if (page !== "privacy" && page !== "terms") renderChrome("");
+    initReveal();
+    initCookie();
+    track();
+  })();
 })();
